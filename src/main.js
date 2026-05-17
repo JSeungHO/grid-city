@@ -8,7 +8,7 @@ import { createCars }  from './createCars.js'
 Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5ZWE2MjQzMy0wM2IwLTQ0YzUtYmI1YS0wNzZiMDdiNzI1ZDciLCJpZCI6MTg4MTk4LCJpYXQiOjE3MDQ1NDkxMTB9.ncmZPDlHSvO9WExgA6o6KAOeAXZiYNbJ64rLEYFYIfk'
 
 const viewer = new Cesium.Viewer('cesiumContainer', {
-    // terrain: Cesium.Terrain.fromWorldTerrain(),
+    terrain: Cesium.Terrain.fromWorldTerrain(),
     baseLayerPicker: false, geocoder: false, homeButton: false,
     sceneModePicker: false, navigationHelpButton: false,
     animation: false, timeline: false,
@@ -32,16 +32,26 @@ const SEOUL_LAT = 37.566
 
 // ── 도시를 원점에 생성 ────────────────────────
 const cityGroup = new THREE.Group()
+
 createRoads(cityGroup)
 createCity(cityGroup)
 const cars = createCars(cityGroup)
 threeScene.add(cityGroup)
 
 // ── 서울 ECEF 좌표 ────────────────────────────
-const seoulECEF = Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 0)
+let seoulECEF = Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 100)
+
+const positions = [Cesium.Cartographic.fromDegrees(SEOUL_LON, SEOUL_LAT)]
+Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, positions)
+    .then(sampled => {
+        const h = sampled[0].height
+        console.log('지형 높이:', h)
+        seoulECEF = Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, h)
+    })
+
 
 viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 300),
+    destination: Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 800),
     orientation: {
         heading: Cesium.Math.toRadians(45),
         pitch:   Cesium.Math.toRadians(-45),
@@ -80,6 +90,9 @@ viewer.scene.postRender.addEventListener(() => {
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(seoulECEF)
     const s = 1  // 스케일 1 (Three.js 단위 = 미터)
 
+// ENU: X=동, Y=북, Z=위
+// Three.js: X=오른쪽, Y=위, Z=앞
+// Y↔Z 교환 필요
     cityGroup.matrixAutoUpdate = false
     cityGroup.matrix.set(
         enu[0]*s, enu[4]*s, enu[8]*s,  enu[12],
@@ -95,24 +108,13 @@ viewer.scene.postRender.addEventListener(() => {
     // ── 차량 이동 ─────────────────────────────────
     cars.forEach(car => {
         car.mesh.position.x += car.dx
-        car.mesh.position.z += car.dz
+        car.mesh.position.y += car.dy  // dz → dy
         if (car.mesh.position.x >  100) car.mesh.position.x = -100
         if (car.mesh.position.x < -100) car.mesh.position.x =  100
-        if (car.mesh.position.z >  100) car.mesh.position.z = -100
-        if (car.mesh.position.z < -100) car.mesh.position.z =  100
+        if (car.mesh.position.y >  100) car.mesh.position.y = -100
+        if (car.mesh.position.y < -100) car.mesh.position.y =  100
     })
 
     threeRenderer.resetState()
     threeRenderer.render(threeScene, threeCamera)
-    if (!window._debugged) {
-        window._debugged = true
-
-        // Cesium 카메라 실제 위치
-        const cesiumPos = viewer.camera.positionWC
-        console.log('Cesium 카메라 ECEF:', cesiumPos.x, cesiumPos.y, cesiumPos.z)
-
-        // Three.js 카메라 위치
-        const threePos = new THREE.Vector3().setFromMatrixPosition(threeCamera.matrixWorld)
-        console.log('Three 카메라 위치:', threePos.x, threePos.y, threePos.z)
-    }
 })
