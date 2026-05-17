@@ -12,5 +12,5 @@ Three.js로 만든 절차적 3D 도시 시뮬레이션
 - 카메라 자동 회전
 
 ## 실행 방법
-npm install
-npm run dev
+-npm install
+-npm run dev
