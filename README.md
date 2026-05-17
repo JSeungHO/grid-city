@@ -1,5 +1,8 @@
 # 🏙️ GridCity
 
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/6536604d-67bb-4c8c-ba8d-680f3ae0fdb5" />
+
+
 > CesiumJS + Three.js로 구현한 서울 실제 지도 위 Low-Poly 도시 시뮬레이션
 
 ![GridCity Demo](https://img.shields.io/badge/Three.js-black?logo=three.js)
@@ -44,3 +47,8 @@ npm run dev
 > Cesium Ion 토큰이 필요합니다. [ion.cesium.com](https://ion.cesium.com) 에서 무료 발급 후 `src/main.js`에 입력하세요.
 
 ## 📁 구조
+src/
+├── main.js          # Cesium + Three.js 통합 엔진
+├── createCity.js    # 절차적 건물 생성
+├── createRoads.js   # 도로망
+└── createCars.js    # 차량 애니메이션
