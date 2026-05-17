@@ -8,7 +8,7 @@ import { createCars }  from './createCars.js'
 Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5ZWE2MjQzMy0wM2IwLTQ0YzUtYmI1YS0wNzZiMDdiNzI1ZDciLCJpZCI6MTg4MTk4LCJpYXQiOjE3MDQ1NDkxMTB9.ncmZPDlHSvO9WExgA6o6KAOeAXZiYNbJ64rLEYFYIfk'
 
 const viewer = new Cesium.Viewer('cesiumContainer', {
-    terrain: Cesium.Terrain.fromWorldTerrain(),
+    // terrain: Cesium.Terrain.fromWorldTerrain(),
     baseLayerPicker: false, geocoder: false, homeButton: false,
     sceneModePicker: false, navigationHelpButton: false,
     animation: false, timeline: false,
@@ -41,26 +41,33 @@ threeScene.add(cityGroup)
 const seoulECEF = Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 0)
 
 viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 2000),
+    destination: Cesium.Cartesian3.fromDegrees(SEOUL_LON, SEOUL_LAT, 300),
     orientation: {
         heading: Cesium.Math.toRadians(45),
         pitch:   Cesium.Math.toRadians(-45),
         roll: 0,
     },
     duration: 2,
+    complete: () => {
+        window._debugged = false  // 도착 후 다시 찍기
+        console.log('카메라 방향(direction):', viewer.camera.direction)
+        console.log('cityGroup 방향으로부터 카메라까지:', {
+            x: -3045753 - (-3044800),
+            y: 4045082 - 4043816,
+            z: 3868592 - 3867372
+        })
+    }
 })
 
 viewer.scene.postRender.addEventListener(() => {
-    // ── 카메라 동기화 ───────────────────────────
-    const civm = viewer.camera.inverseViewMatrix
-    threeCamera.matrixWorld.set(
-        civm[0], civm[4], civm[8],  civm[12],
-        civm[1], civm[5], civm[9],  civm[13],
-        civm[2], civm[6], civm[10], civm[14],
-        civm[3], civm[7], civm[11], civm[15]
+    const vm = viewer.camera.viewMatrix
+    threeCamera.matrixWorldInverse.set(
+        vm[0], vm[4], vm[8],  vm[12],
+        vm[1], vm[5], vm[9],  vm[13],
+        vm[2], vm[6], vm[10], vm[14],
+        vm[3], vm[7], vm[11], vm[15]
     )
-    threeCamera.matrixWorldInverse.copy(threeCamera.matrixWorld).invert()
-
+    threeCamera.matrixWorld.copy(threeCamera.matrixWorldInverse).invert()
     const fov    = Cesium.Math.toDegrees(viewer.camera.frustum.fovy ?? Math.PI / 3)
     const aspect = viewer.canvas.clientWidth / viewer.canvas.clientHeight
     threeCamera.fov    = fov
@@ -69,17 +76,21 @@ viewer.scene.postRender.addEventListener(() => {
     threeCamera.far    = 1e10
     threeCamera.updateProjectionMatrix()
 
-    // ── cityGroup을 서울 ENU 기준으로 배치 ───────
-    // 카메라 위치를 기준점으로 ECEF 변환
+    // ── cityGroup ENU 배치 ──────────────────────
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(seoulECEF)
+    const s = 1  // 스케일 1 (Three.js 단위 = 미터)
+
     cityGroup.matrixAutoUpdate = false
     cityGroup.matrix.set(
-        enu[0], enu[4], enu[8],  enu[12],
-        enu[1], enu[5], enu[9],  enu[13],
-        enu[2], enu[6], enu[10], enu[14],
-        enu[3], enu[7], enu[11], enu[15]
+        enu[0]*s, enu[4]*s, enu[8]*s,  enu[12],
+        enu[1]*s, enu[5]*s, enu[9]*s,  enu[13],
+        enu[2]*s, enu[6]*s, enu[10]*s, enu[14],
+        enu[3],   enu[7],   enu[11],   enu[15]
     )
-    cityGroup.matrixWorld.copy(cityGroup.matrix)
+    cityGroup.updateMatrixWorld(true)
+
+// 확인용
+//     console.log('cityGroup translation:', enu[12], enu[13], enu[14])
 
     // ── 차량 이동 ─────────────────────────────────
     cars.forEach(car => {
@@ -93,4 +104,15 @@ viewer.scene.postRender.addEventListener(() => {
 
     threeRenderer.resetState()
     threeRenderer.render(threeScene, threeCamera)
+    if (!window._debugged) {
+        window._debugged = true
+
+        // Cesium 카메라 실제 위치
+        const cesiumPos = viewer.camera.positionWC
+        console.log('Cesium 카메라 ECEF:', cesiumPos.x, cesiumPos.y, cesiumPos.z)
+
+        // Three.js 카메라 위치
+        const threePos = new THREE.Vector3().setFromMatrixPosition(threeCamera.matrixWorld)
+        console.log('Three 카메라 위치:', threePos.x, threePos.y, threePos.z)
+    }
 })
